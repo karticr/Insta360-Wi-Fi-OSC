@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>360° viewer — photos_360</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" crossorigin="anonymous" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d0f12;
+      --panel: #161a1f;
+      --border: #2d333b;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #8ab4f8;
+      --row-hover: #252a32;
+      --row-active: #1e3a5f;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+    .layout {
+      display: flex;
+      height: 100%;
+    }
+    aside {
+      width: min(22rem, 38vw);
+      min-width: 14rem;
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    aside header {
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid var(--border);
+    }
+    aside header h1 {
+      margin: 0 0 0.35rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+    }
+    .toolbar {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+    .toolbar input[type="search"] {
+      flex: 1;
+      min-width: 0;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #0d0f12;
+      color: var(--text);
+      font-size: 0.8rem;
+    }
+    .toolbar button {
+      padding: 0.35rem 0.55rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #252a32;
+      color: var(--text);
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+    .toolbar button:hover { background: #323842; }
+    #list-wrap {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0.35rem 0;
+    }
+    .empty, .err {
+      padding: 1rem 0.85rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .err { color: #f28b82; }
+    ul.images {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    ul.images li button {
+      width: 100%;
+      text-align: left;
+      padding: 0.5rem 0.85rem;
+      border: none;
+      border-bottom: 1px solid var(--border);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+    ul.images li button:hover { background: var(--row-hover); }
+    ul.images li button.active {
+      background: var(--row-active);
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .fname {
+      font-size: 0.8rem;
+      word-break: break-all;
+      color: var(--text);
+    }
+    .meta {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+    main {
+      flex: 1;
+      position: relative;
+      min-width: 0;
+    }
+    #panorama {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #status-bar {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 15;
+      padding: 0.35rem 0.65rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      background: linear-gradient(to top, rgba(0,0,0,0.55), transparent);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside>
+      <header>
+        <h1>Browse photos_360</h1>
+        <div class="toolbar">
+          <input type="search" id="filter" placeholder="Filter by name…" autocomplete="off" />
+          <button type="button" id="refresh" title="Reload list">Refresh</button>
+        </div>
+      </header>
+      <div id="list-wrap">
+        <p class="empty" id="loading">Loading…</p>
+        <p class="empty" id="empty" hidden>No images yet. Run <code>insta360_shoot_360.py</code> first.</p>
+        <p class="err" id="error" hidden></p>
+        <ul class="images" id="list" hidden></ul>
+      </div>
+    </aside>
+    <main>
+      <div id="panorama"></div>
+      <div id="status-bar"><span id="status-text">Select an image</span></div>
+    </main>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js" crossorigin="anonymous"></script>
+  <script>
+    (function () {
+      var viewer = null;
+      var allImages = [];
+      var activeName = null;
+
+      var listEl = document.getElementById("list");
+      var loadingEl = document.getElementById("loading");
+      var emptyEl = document.getElementById("empty");
+      var errorEl = document.getElementById("error");
+      var filterEl = document.getElementById("filter");
+      var refreshBtn = document.getElementById("refresh");
+      var statusText = document.getElementById("status-text");
+
+      function fmtBytes(n) {
+        if (n < 1024) return n + " B";
+        if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+        return (n / 1048576).toFixed(2) + " MB";
+      }
+
+      function fmtTime(ts) {
+        try {
+          return new Date(ts * 1000).toLocaleString();
+        } catch (e) {
+          return "";
+        }
+      }
+
+      function imageUrl(name) {
+        return "/image/" + encodeURIComponent(name);
+      }
+
+      function destroyViewer() {
+        if (viewer && typeof viewer.destroy === "function") {
+          try { viewer.destroy(); } catch (e) {}
+        }
+        viewer = null;
+        document.getElementById("panorama").innerHTML = "";
+      }
+
+      function loadPanorama(name) {
+        destroyViewer();
+        activeName = name;
+        var url = imageUrl(name);
+        statusText.textContent = "Loading: " + name;
+        viewer = pannellum.viewer("panorama", {
+          type: "equirectangular",
+          panorama: url,
+          autoLoad: true,
+          showControls: true,
+          compass: true,
+          hfov: 100,
+          minHfov: 50,
+          maxHfov: 120,
+          autoRotate: 1,
+        });
+        statusText.textContent = name;
+        document.querySelectorAll("#list button").forEach(function (btn) {
+          btn.classList.toggle("active", btn.dataset.name === name);
+        });
+        var u = new URL(window.location.href);
+        u.searchParams.set("image", name);
+        window.history.replaceState({}, "", u);
+      }
+
+      function renderList(filter) {
+        var q = (filter || "").trim().toLowerCase();
+        var items = allImages.filter(function (x) {
+          return !q || x.name.toLowerCase().indexOf(q) !== -1;
+        });
+
+        listEl.innerHTML = "";
+        if (!allImages.length) {
+          loadingEl.hidden = true;
+          emptyEl.hidden = false;
+          errorEl.hidden = true;
+          listEl.hidden = true;
+          return;
+        }
+        loadingEl.hidden = true;
+        emptyEl.hidden = true;
+        errorEl.hidden = true;
+        listEl.hidden = false;
+
+        if (!items.length) {
+          var li0 = document.createElement("li");
+          li0.innerHTML = '<p class="empty" style="padding:0.75rem">No matches.</p>';
+          listEl.appendChild(li0);
+          return;
+        }
+
+        items.forEach(function (x) {
+          var li = document.createElement("li");
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.dataset.name = x.name;
+          btn.innerHTML =
+            '<div class="fname"></div><div class="meta"></div>';
+          btn.querySelector(".fname").textContent = x.name;
+          btn.querySelector(".meta").textContent =
+            fmtBytes(x.size) + " · " + fmtTime(x.mtime);
+          btn.addEventListener("click", function () {
+            loadPanorama(x.name);
+          });
+          if (x.name === activeName) btn.classList.add("active");
+          li.appendChild(btn);
+          listEl.appendChild(li);
+        });
+      }
+
+      function fetchImages() {
+        loadingEl.hidden = false;
+        emptyEl.hidden = true;
+        errorEl.hidden = true;
+        listEl.hidden = true;
+        listEl.innerHTML = "";
+
+        fetch("/api/images")
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .then(function (data) {
+            allImages = data;
+            renderList(filterEl.value);
+            var params = new URLSearchParams(window.location.search);
+            var want = params.get("image");
+            if (want && data.some(function (d) { return d.name === want; })) {
+              loadPanorama(want);
+            } else if (data.length && !activeName) {
+              loadPanorama(data[0].name);
+            } else if (!data.length) {
+              loadingEl.hidden = true;
+              emptyEl.hidden = false;
+            }
+          })
+          .catch(function (e) {
+            loadingEl.hidden = true;
+            errorEl.hidden = false;
+            errorEl.textContent = "Could not load list: " + e.message;
+          });
+      }
+
+      filterEl.addEventListener("input", function () {
+        renderList(filterEl.value);
+      });
+      refreshBtn.addEventListener("click", fetchImages);
+
+      fetchImages();
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>360° viewer</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css" crossorigin="anonymous" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0d0f12;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --warn-bg: #3d2914;
+      --warn-border: #f9ab00;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+    #panorama {
+      width: 100%;
+      height: 100%;
+      position: fixed;
+      inset: 0;
+    }
+    #toolbar {
+      position: fixed;
+      z-index: 20;
+      top: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0.75rem;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.75), transparent);
+      pointer-events: none;
+    }
+    #toolbar > * { pointer-events: auto; }
+    #toolbar label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    #toolbar input[type="text"] {
+      min-width: 12rem;
+      flex: 1;
+      max-width: 28rem;
+      padding: 0.35rem 0.5rem;
+      border: 1px solid #3c4043;
+      border-radius: 6px;
+      background: #1a1d21;
+      color: var(--text);
+      font-size: 0.85rem;
+    }
+    #toolbar button {
+      padding: 0.4rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid #5f6368;
+      background: #2d3136;
+      color: var(--text);
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    #toolbar button:hover { background: #3c4043; }
+    #file-warning {
+      display: none;
+      position: fixed;
+      z-index: 30;
+      bottom: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: min(36rem, calc(100% - 2rem));
+      padding: 0.75rem 1rem;
+      background: var(--warn-bg);
+      border: 1px solid var(--warn-border);
+      border-radius: 8px;
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+    #file-warning code {
+      background: rgba(0,0,0,0.35);
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <label>
+      Panorama URL (relative to this page)
+      <input type="text" id="panoPath" spellcheck="false" />
+    </label>
+    <button type="button" id="reloadBtn">Load</button>
+  </div>
+  <div id="panorama"></div>
+  <div id="file-warning">
+    Opened as <code>file://</code> — browsers usually block 360 WebGL from local files.
+    From this folder run:
+    <code>python -m http.server 8765</code>
+    then visit
+    <code>http://localhost:8765/viewer_360.html</code>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js" crossorigin="anonymous"></script>
+  <script>
+    (function () {
+      var DEFAULT_PANO = "photos_360/IMG_20260504_002153_00_006.jpg";
+
+      function getInitialPath() {
+        var q = new URLSearchParams(window.location.search).get("file");
+        if (q) return decodeURIComponent(q);
+        return DEFAULT_PANO;
+      }
+
+      var viewer = null;
+      var input = document.getElementById("panoPath");
+      var reloadBtn = document.getElementById("reloadBtn");
+
+      function destroyViewer() {
+        if (viewer && typeof viewer.destroy === "function") {
+          try { viewer.destroy(); } catch (e) {}
+        }
+        viewer = null;
+        var el = document.getElementById("panorama");
+        el.innerHTML = "";
+      }
+
+      function loadPanorama(path) {
+        destroyViewer();
+        input.value = path;
+        viewer = pannellum.viewer("panorama", {
+          type: "equirectangular",
+          panorama: path,
+          autoLoad: true,
+          showControls: true,
+          compass: true,
+          hotSpotDebug: false,
+          hfov: 100,
+          minHfov: 50,
+          maxHfov: 120,
+          autoRotate: 1,
+        });
+      }
+
+      if (window.location.protocol === "file:") {
+        document.getElementById("file-warning").style.display = "block";
+      }
+
+      input.value = getInitialPath();
+      loadPanorama(input.value.trim());
+
+      reloadBtn.addEventListener("click", function () {
+        var p = input.value.trim();
+        if (!p) return;
+        var url = new URL(window.location.href);
+        url.searchParams.set("file", p);
+        window.history.replaceState({}, "", url);
+        loadPanorama(p);
+      });
+
+      input.addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") reloadBtn.click();
+      });
+    })();
+  </script>
+</body>
+</html>
