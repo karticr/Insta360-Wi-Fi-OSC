@@ -11,22 +11,6 @@ There is no mobile app dependency at runtime beyond **one‑time camera activati
 
 ---
 
-## GitHub discoverability (for maintainers)
-
-Use a **repository name** that includes the brand + protocol + outcome, for example:
-
-**`insta360-osc-360-capture`**
-
-Set the repo **About → Description** (one line, shown in search):
-
-> Python + **requests**: **Insta360 Wi‑Fi OSC** — **stitched 360° equirectangular JPG** (`photoStitching: ondevice`) + **Flask** / **Pannellum** viewer. **Open Spherical Camera API**. Tested with **X5**.
-
-Add **Topics** (⚙ Repository settings → Topics; pick what fits, up to ~20):
-
-`insta360` · `insta360-x5` · `insta360-osc` · `open-spherical-camera` · `google-osc` · `osc-api` · `spherical-camera` · `360-camera` · `equirectangular` · `panorama` · `python` · `flask` · `pannellum` · `requests` · `wifi-camera` · `action-camera` · `photo-stitching` · `computational-photography` · `street-view` · `insta360-developer`
-
----
-
 ## What you get
 
 | Piece | Role |
@@ -94,7 +78,7 @@ Open **http://127.0.0.1:8765/** (or from another machine on your LAN: **`http://
 - Click a row to load it in the 360 viewer.
 - Deep link: **`http://127.0.0.1:8765/?image=IMG_….jpg`**
 
-**Security note for a public repo / shared networks:** the viewer is meant for **local / trusted LAN** use. It serves every allowed image under `photos_360/` to anyone who can reach the port. For untrusted networks, bind to `127.0.0.1` only (change `app.run` in `viewer_app.py`) or put **HTTPS + auth** in front (reverse proxy).
+**Security note on shared networks:** the viewer is meant for **local / trusted LAN** use. It serves every allowed image under `photos_360/` to anyone who can reach the port. For untrusted networks, bind to `127.0.0.1` only (change `app.run` in `viewer_app.py`) or put **HTTPS + auth** in front (reverse proxy).
 
 ---
 
@@ -110,10 +94,8 @@ Open **http://127.0.0.1:8765/** (or from another machine on your LAN: **`http://
 ├── viewer_360.html           # Optional static CDN viewer
 ├── templates/
 │   └── viewer.html           # Flask UI + Pannellum
-└── photos_360/               # Output & viewer source (gitignored if you prefer)
+└── photos_360/               # Output & viewer source
 ```
-
-Add **`photos_360/`** to **`.gitignore`** if you do not want captures in the repo.
 
 ---
 
@@ -158,4 +140,4 @@ This project is **not** affiliated with Insta360. Camera behavior depends on **f
 
 ## License
 
-Add a `LICENSE` file to your repository (e.g. MIT, Apache-2.0) and state it here. Until then, all rights reserved by the repository owner unless you specify otherwise.
+This project is licensed under the **GNU General Public License v3.0** — see [`LICENSE`](LICENSE).
